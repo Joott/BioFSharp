@@ -86,44 +86,35 @@ let giveMePositiveAAs aminoAcid =
     match aminoAcid with
     | a when AminoAcids.isPosCharged a -> 
         printfn 
-            "Hey, how are you? I am %s, but my friends call me %c. I'm usually in a positive mood."
+            "Hey, how are you? I am %s, but my friends call me %c. I'm usually in a positive mood"
             (AminoAcids.name a)
             (AminoAcids.symbol a)
 
     | a when AminoAcids.isNegCharged a -> 
         printfn 
-            "I am %s, short: %c. I'm usually in a negative mood."
+            "I am %s, short: %c. I'm usually in a negative mood"
             (AminoAcids.name a)
             (AminoAcids.symbol a)
 
     | _ -> printfn "Just strolling around, minding my own business."
 
 (**Alanine is usually not charged:*)
-(*** hide ***)
-//FSharp Formatting appears to have problems with functions containing sets. Therefore the output of the function is given as a set value
-//until it is fixed.
-let alaRes = "Just strolling around, minding my own business."
-(*** do-not-eval ***)
+
+(*** define-output:out1 ***)
 giveMePositiveAAs ala
-(*** include-value:alaRes ***)
+(*** include-output:out1 ***)
 
 (**Lysine is usually positively charged:*)
-(*** hide ***)
-//FSharp Formatting appears to have problems with functions containing sets. Therefore the output of the function is given as a set value
-//until it is fixed.
-let lysRes = "Hey, how are you? I am Lysine, but my friends call me K. I'm usually in a positive mood."
-(*** do-not-eval ***)
+
+(*** define-output:out2 ***)
 giveMePositiveAAs lys
-(*** include-value:lysRes ***)
+(*** include-output:out2 ***)
 
 (**Glutamic acid is usually negatively charged:*)
-(*** hide ***)
-//FSharp Formatting appears to have problems with functions containing sets. Therefore the output of the function is given as a set value
-//until it is fixed.
-let gluRes = "I am Glutamic Acid, short: E. I'm usually in a negative mood."
-(*** do-not-eval ***)
+
+(*** define-output:out3 ***)
 giveMePositiveAAs glu
-(*** include-value:gluRes ***)
+(*** include-output:out3 ***)
 
 
 (**
@@ -186,22 +177,18 @@ let phosphorylation = ModificationInfo.createModification "Phosphorylation" fals
 ///phosphorylated Serine
 let phosphoSerine = AminoAcids.setModification phosphorylation hydroSerine
 
-(*** hide ***)
-//FSharp Formatting appears to have problems with functions containing sets. Therefore the output of the function is given as a set value
-//until it is fixed.
-let getF3 = "P1.00 C3.00 H6.00 N1.00 O6.00"
+(***hide***)
+let getF3 = getF phosphoSerine
 (***do-not-eval***)
-getF phosphoSerine
+getF phosphoSerine 
 (***include-value:getF3***)
 
 (**
 As you can see the Serine is phosphorylated just as we wanted. Our inital aim was to check the mass, this can be done quite easily:
 *)
 (***hide***)
-//FSharp Formatting appears to have problems with functions containing sets. Therefore the output of the function is given as a set value
-//until it is fixed.
-let m1 = 87.077575
-let m2 = 183.056884
+let m1 = AminoAcids.averageMass mySerine
+let m2 = AminoAcids.averageMass phosphoSerine
 (***do-not-eval***)
 AminoAcids.averageMass mySerine
 (***include-value:m1***)
