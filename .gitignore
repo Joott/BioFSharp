@@ -178,8 +178,11 @@ release.cmd
 release.sh
 localpackages/
 paket-files
+.paket/.store
+.paket/paket.exe
 *.orig
 .fake
 docsrc/tools/FSharp.Formatting.svclog
 docs
 /temp
+/pkg

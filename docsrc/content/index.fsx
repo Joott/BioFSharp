@@ -43,10 +43,21 @@ The core datamodel implements in ascending hierarchical order:
 Installation
 ------------
 
-BioFSharp is currently on the way to its 1.0.0 release. When this process is done, we will provide a nuget package at [nuget.org](https://www.nuget.org/). However, currently the way to get BioFSharp running on 
-your machine is to either clone the repository and build the binaries yourself or download the prerelease packages from our [nuget branch](https://github.com/CSBiology/BioFSharp/tree/nuget).
+**From Nuget.org:**
 
-**Using prerelease packages from the nuget branch:**
+You can get the stable versions of all BioFSharp packages from nuget:
+
+<pre>
+Install-Package BioFSharp
+paket add BioFSharp
+</pre>
+
+All associated packages can be found [here](https://www.nuget.org/profiles/CSBiology)
+
+
+**Prerelease packages from the nuget branch:**
+
+Unstable/Experimental packages only.
 
 If you are using paket, add the following line to you `paket.dependencies` file:
 
@@ -56,29 +67,42 @@ you can then access the individual packages:
 
 `nuget BioFSharp`
 
+`nuget BioFSharp.BioContainers`
+
 `nuget BioFSharp.IO`
 
 `nuget BioFSharp.Stats`
+
+`nuget BioFSharp.ML`
 
 `nuget BioFSharp.BioDB`
 
 `nuget BioFSharp.Vis`
 
 
-**To build the binaries yourself:**
+**Build the binaries yourself:**
 
 **Windows**:
 
-- Install [.Net Core SDK](https://www.microsoft.com/net/download)
-- Install the dotnet tool fake cli by `dotnet tool install fake-cli -g` for global installation or `dotnet tool install fake-cli --tool-path yourtoolpath`
+- Install [.Net Core SDK](https://www.microsoft.com/net/download) 3.0 +
 - go to the project folder
-- use the console command `fake build`
+- `.\build.cmd`
 
-**Linux(Ubuntu, using Mono)**:
+**Linux(using Mono)**:
+
+- BioDB is excluded from this build.
 
 - Install [.Net Core SDK](https://www.microsoft.com/net/download/linux-package-manager/ubuntu14-04/sdk-current)
 - go to the project folder
-- use the console command `dotnet fake build --target Linux`
+- ./build.sh -t Mono
+
+**Linux(Dotnet Core only)**:
+
+- this does only build projects targeting netstandard2.0 (Core, BioContainers, IO, Stats, ML)
+
+- Install [.Net Core SDK](https://www.microsoft.com/net/download/linux-package-manager/ubuntu14-04/sdk-current)
+- go to the project folder
+- ./build.sh -t Dotnet
 
 </br>
 
@@ -107,8 +131,8 @@ let nucleotideSequence = "ATGC" |> BioSeq.ofNucleotideString
 (**
 BioFSharp comes equipped with a broad range of features and functions to map amino acids and nucleotides. 
 *)
-// Returns the corresponding nucleotide of the anti-parallel strand
-let antiG = Nucleotides.G |> Nucleotides.antiparallel
+// Returns the corresponding nucleotide of the complementary strand
+let antiG = Nucleotides.G |> Nucleotides.complement
 (***include-value:antiG***)
 
 // Returns the monoicsotopic mass of Arginine (minus H2O)
@@ -149,13 +173,12 @@ the project and submit pull requests. If you're adding a new public API, please 
 consider adding [samples][content] that can be turned into a documentation. You might
 also want to read the [library design notes][readme] to understand how it works.
 
-The library is available under Public Domain license, which allows modification and 
-redistribution for both commercial and non-commercial purposes. For more information see the 
+The library is available under the OSI-approved MIT license. For more information see the 
 [License file][license] in the GitHub repository. 
 
   [content]: https://github.com/CSBiology/BioFSharp/tree/master/docsrc/content
   [gh]: https://github.com/CSBiology/BioFSharp
   [issues]: https://github.com/CSBiology/BioFSharp/issues
   [readme]: https://github.com/CSBiology/BioFSharp/blob/master/README.md
-  [license]: https://github.com/CSBiology/BioFSharp/blob/master/LICENSE.txt
+  [license]: https://github.com/CSBiology/BioFSharp/blob/master/LICENSE
 *)

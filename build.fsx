@@ -2,10 +2,22 @@
 // FAKE build script
 // --------------------------------------------------------------------------------------
 
-#r "paket: groupref FakeBuild //"
+#r "paket:
+nuget Fake.Core.Target
+nuget Fake.Core.Process
+nuget Fake.Core.ReleaseNotes
+nuget Fake.IO.FileSystem
+nuget Fake.DotNet.Cli
+nuget Fake.DotNet.MSBuild
+nuget Fake.DotNet.AssemblyInfoFile
+nuget Fake.DotNet.Paket
+nuget Fake.DotNet.FSFormatting
+nuget Fake.DotNet.Fsi
+nuget Fake.DotNet.NuGet
+nuget Fake.Api.Github
+nuget Fake.DotNet.Testing.Expecto //"
 
-#load "./.fake/build.fsx/intellisense.fsx"
-
+#load ".fake/build.fsx/intellisense.fsx"
 open System.IO
 open Fake.Core
 open Fake.Core.TargetOperators
@@ -18,6 +30,8 @@ open Fake.DotNet.Testing
 open Fake.Tools
 open Fake.Api
 open Fake.Tools.Git
+
+Target.initEnvironment ()
 
 [<AutoOpen>]
 module TemporaryDocumentationHelpers =
@@ -32,16 +46,30 @@ module TemporaryDocumentationHelpers =
           FsiEval : bool }
 
 
-    let private run toolPath command = 
-        if 0 <> Process.execSimple ((fun info ->
-                { info with
-                    FileName = toolPath
-                    Arguments = command }) >> Process.withFramework) System.TimeSpan.MaxValue
+    let private run toolPath arguments = 
+        Command.RawCommand
+            (
+                toolPath,
+                arguments
+            )
+        |> CreateProcess.fromCommand
+        |> CreateProcess.withFramework
+        |> CreateProcess.ensureExitCode
+        |> Proc.run
+        |> ignore
+        //if 0 <> Process.execSimple ((fun info ->
+        //        { info with
+        //            FileName = toolPath
+        //            Arguments = command }) >> Process.withFramework) System.TimeSpan.MaxValue
 
-        then failwithf "FSharp.Formatting %s failed." command
+        //then failwithf "FSharp.Formatting %s failed." command
 
     let createDocs p =
-        let toolPath = Tools.findToolInSubPath "fsformatting.exe" (Directory.GetCurrentDirectory() @@ "lib/Formatting")
+        let toolPath = 
+            match ProcessUtils.tryFindLocalTool "" "fsformatting.exe"  [(Directory.GetCurrentDirectory() @@ "/lib")] with
+            |Some tool -> tool
+            | _ -> failwith "FSFormatting executable not found"
+        //let toolPath = Tools.findToolInSubPath "fsformatting.exe" (Directory.GetCurrentDirectory() @@ "lib/Formatting")
 
         let defaultLiterateArguments =
             { ToolPath = toolPath
@@ -68,10 +96,7 @@ module TemporaryDocumentationHelpers =
             |> Seq.append 
                    (["literate"; "--processdirectory" ] @ layoutroots @ [ "--inputdirectory"; source; "--templatefile"; template; 
                       "--outputDirectory"; outputDir] @ fsiEval @ [ "--replacements" ])
-            |> Seq.map (fun s -> 
-                   if s.StartsWith "\"" then s
-                   else sprintf "\"%s\"" s)
-            |> String.separated " "
+            |> Arguments.OfArgs
         run arguments.ToolPath command
         printfn "Successfully generated docs for %s" source
 
@@ -146,9 +171,22 @@ let gitRaw = Environment.environVarOrDefault "gitRaw" "https://raw.githubusercon
 
 let website = "/BioFSharp"
 
+let pkgDir = "pkg"
+
+let monoConfiguration = DotNet.Custom "Mono"
+let dotnetCoreConfiguration = DotNet.Custom "DotnetCore"
+let buildConfiguration = DotNet.Custom <| Environment.environVarOrDefault "configuration" configuration
 // --------------------------------------------------------------------------------------
 // END TODO: The rest of the file includes standard build steps
 // --------------------------------------------------------------------------------------
+
+//Target.create "InstallPaket" (fun _ ->
+//    if not (File.exists ".paket\paket.exe") then
+//        DotNet.exec id "tool" "install --tool-path \".paket\" Paket"
+//        |> ignore
+//    else
+//        printfn "paket already installed"
+//)
 
 // Read additional information from the release notes document
 let release = ReleaseNotes.load "RELEASE_NOTES.md"
@@ -205,7 +243,7 @@ Target.create "CopyBinaries" (fun _ ->
     |>  Seq.iter (fun (fromDir, toDir) -> Shell.copyDir toDir fromDir (fun _ -> true))
 )
 
-Target.create "CopyBinariesLinux" (fun _ ->
+Target.create "CopyBinariesMono" (fun _ ->
     printfn "excluding the biodb project for mono builds"
     printfn "paths to copy : %A" (!! "src/**/*.??proj"-- "src/**/*.shproj" -- "src/BioFSharp.BioDb.fsproj")
     let targets = 
@@ -219,11 +257,25 @@ Target.create "CopyBinariesLinux" (fun _ ->
                                             Shell.copyDir toDir fromDir (fun _ -> true))
 )
 
+Target.create "CopyBinariesDotnet" (fun _ ->
+    printfn "excluding the biodb project for dotnet builds"
+    printfn "paths to copy : %A" (!! "src/**/*.??proj"-- "src/**/*.shproj" -- "src/BioFSharp.BioDb.fsproj" -- "src/BioFSharp.Parallel.fsproj" -- "src/BioFSharp.ImgP.fsproj" -- "src/BioFSharp.Vis.fsproj")
+    let targets = 
+        !! "src/**/*.??proj"
+        -- "src/BioFSharp.BioDB/BioFSharp.BioDB.fsproj"
+        -- "src/BioFSharp.Parallel/BioFSharp.Parallel.fsproj" 
+        -- "src/BioFSharp.ImgP/BioFSharp.ImgP.fsproj" 
+        -- "src/BioFSharp.Vis/BioFSharp.Vis.fsproj"
+        -- "src/**/*.shproj"
+        |>  Seq.map (fun f -> ((Path.getDirectory f) </> "bin" </> "DotnetCore", "bin" </> (Path.GetFileNameWithoutExtension f)))
+    for i in targets do printfn "%A" i
+    targets
+    |>  Seq.iter (fun (fromDir, toDir) ->   printfn "copy from %s to %s" fromDir toDir
+                                            Shell.copyDir toDir fromDir (fun _ -> true))
+)
 
 // --------------------------------------------------------------------------------------
 // Clean build results
-
-let buildConfiguration = DotNet.Custom <| Environment.environVarOrDefault "configuration" configuration
 
 Target.create "Clean" (fun _ ->
     Shell.cleanDirs ["bin"; "temp"]
@@ -241,11 +293,15 @@ Target.create "Restore" (fun _ ->
     |> DotNet.restore id
 )
 
+Target.create "RestoreMono" (fun _ ->
+    !! "src/**/*.??proj"
+    ++ "tests/**/*.??proj"
+    -- "src/BioFSharp.BioDB/BioFSharp.BioDB.fsproj"
+    -- "src/**/*.shproj"
+    |> Seq.iter (fun f -> f |> DotNet.restore id)
+)
+
 Target.create "Build" (fun _ ->
-    (*solutionFile
-    |> DotNet.build (fun p ->
-        { p with
-            Configuration = buildConfiguration })*)
     let setParams (defaults:MSBuildParams) =
         { defaults with
             Verbosity = Some(Quiet)
@@ -260,11 +316,7 @@ Target.create "Build" (fun _ ->
     MSBuild.build setParams solutionFile
 )
 
-Target.create "BuildLinux" (fun _ ->
-    (*solutionFile
-    |> DotNet.build (fun p ->
-        { p with
-            Configuration = buildConfiguration })*)
+Target.create "BuildMono" (fun _ ->
     let setParams (defaults:MSBuildParams) =
         { defaults with
             Verbosity = Some(Quiet)
@@ -277,53 +329,72 @@ Target.create "BuildLinux" (fun _ ->
                 ]
          }
     MSBuild.build setParams solutionFile
+    )
+
+Target.create "BuildDotnet" (fun _ ->
+    solutionFile 
+    |> DotNet.build (fun p -> 
+        { p with
+            Configuration = dotnetCoreConfiguration }
+        )
 )
-
-
 // --------------------------------------------------------------------------------------
 // Run the unit tests using test runner
 
 Target.create "RunTests" (fun _ ->
     let assemblies = !! testAssemblies
 
-    let setParams f =
-        match Environment.isWindows with
-        | true ->
-            fun p ->
-                { p with
-                    FileName = f}
-        | false ->
-            fun p ->
-                { p with
-                    FileName = "mono"
-                    Arguments = f }
     assemblies
-    |> Seq.map (fun f ->
-        Process.execSimple (setParams f) System.TimeSpan.MaxValue
+    |> Seq.iter (fun f ->
+        Command.RawCommand (
+            f,
+            Arguments.OfArgs []
+        )
+        |> CreateProcess.fromCommand
+        |> CreateProcess.withFramework
+        |> CreateProcess.ensureExitCode
+        |> Proc.run
+        |> ignore
     )
-    |>Seq.reduce (+)
-    |> (fun i -> if i > 0 then failwith "")
+)
+
+Target.create "RunTestsMono" (fun _ ->
+    let assemblies = !! testAssemblies
+
+    assemblies
+    |> Seq.iter (fun f ->
+        Command.RawCommand (
+            f,
+            Arguments.OfArgs []
+        )
+        |> CreateProcess.fromCommand
+        |> CreateProcess.withFramework
+        |> CreateProcess.ensureExitCode
+        |> Proc.run
+        |> ignore
+    )
 )
 
 // --------------------------------------------------------------------------------------
 // Build a NuGet package
 
+
 Target.create "NuGet" (fun _ ->
     Paket.pack(fun p ->
         { p with
-            ToolPath=".paket/paket.exe"
-            OutputPath = "bin"
+            ToolType = ToolType.CreateLocalTool()
+            OutputPath = pkgDir
             Version = release.NugetVersion
-            ReleaseNotes = String.toLines release.Notes})
-)
+            ReleaseNotes = release.Notes |> String.toLines })
+        )
 
 Target.create "PublishNuget" (fun _ ->
     Paket.push(fun p ->
         { p with
-            PublishUrl = "https://www.nuget.org"
-            WorkingDir = "bin" })
+            WorkingDir = pkgDir
+            ToolType = ToolType.CreateLocalTool()
+            ApiKey = Environment.environVarOrDefault "NuGet-key" "" })
 )
-
 
 // --------------------------------------------------------------------------------------
 // Generate the documentation
@@ -414,8 +485,8 @@ Target.create "Docs" (fun _ ->
     Shell.rename "docsrc/content/release-notes.md" "docsrc/content/RELEASE_NOTES.md"
 
     File.delete "docsrc/content/license.md"
-    Shell.copyFile "docsrc/content/" "LICENSE.txt"
-    Shell.rename "docsrc/content/license.md" "docsrc/content/LICENSE.txt"
+    Shell.copyFile "docsrc/content/" "LICENSE"
+    Shell.rename "docsrc/content/license.md" "docsrc/content/LICENSE"
 
 
     DirectoryInfo.getSubDirectories (DirectoryInfo.ofPath templates)
@@ -541,14 +612,30 @@ Target.create "ReleaseDocsConfirmation" (fun _ -> match promptYesNo releaseDocsM
 
 Target.create "All" ignore
 
-Target.create "Linux" ignore
+Target.create "Dotnet" ignore
 
+Target.create "Mono" ignore
+
+Target.create "CIBuild" ignore
+
+Target.create "CIBuildLinux" ignore
+
+//Dotnet core build, excludes all .net framework only projects
 "Clean"
   ==> "AssemblyInfo"
-  ==> "Restore"
-  ==> "BuildLinux"
-  ==> "CopyBinariesLinux"
-  ==> "Linux"
+  //==> "Restore"
+  ==> "BuildDotnet"
+  ==> "CopyBinariesDotnet"
+  ==> "Dotnet"
+
+//Builds on mono, biodb is excluded as i simply cannot get it to work
+"Clean"
+  ==> "AssemblyInfo"
+  ==> "RestoreMono"
+  ==> "BuildMono"
+  ==> "CopyBinariesMono"
+  ==> "RunTestsMono"
+  ==> "Mono"
 
 "Clean"
   ==> "AssemblyInfo"
@@ -576,6 +663,7 @@ Target.create "Linux" ignore
   ==> "Release"
 
 "Clean"
+  //==> "InstallPaket"
   ==> "AssemblyInfo"
   ==> "Build"
   ==> "CopyBinaries"
